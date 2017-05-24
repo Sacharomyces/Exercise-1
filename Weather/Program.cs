@@ -12,64 +12,68 @@ using Newtonsoft.Json.Linq;
 namespace Weather
 {
     
-    public class City
-    {
-        public string Name { get; set; }
-        public int Temp { get; set; }
-
-    }
+    
     class Program
     {
         static  HttpClient client = new HttpClient();
 
 
-        static List<string> GetIds()
+        static List<City> GetCities()
         {
             Random random = new Random();
 
-            var fullArray = JArray.Parse(File.ReadAllText(@"city.list.json"));  
-            var ids = new List<string>();                                       // this could be hardcoded list of 50 strings, but I want to achive different results each time
+            var allCities = new List<City>();
 
-                for (int i = 0; i < 50; i++)
+            var cities = new List<City>();
+
+            using (StreamReader sr = File.OpenText(@"city.list.json"))
+            {
+                using (JsonReader reader = new JsonTextReader(sr))
                 {
-                    var item = fullArray[random.Next(fullArray.Count)];
-                    var id = (string) item["id"];
-                    ids.Add(id);
-                    fullArray.Remove(item);
+                    JsonSerializer serializer = new JsonSerializer();
+
+                    allCities = serializer.Deserialize<List<City>>(reader);
                 }
-            return ids;
+            }
+          
+
+            for (int i = 0; i < 50; i++)
+            {
+                    var city = allCities[random.Next(allCities.Count)];
+                    cities.Add(city);
+                    allCities.Remove(city);
+            }
+
+            return cities;
         }
 
-        static List<City> GetCities()
+
+       static List<City> GetTemps()
         {
             var baseUrl = "http://api.openweathermap.org/data/2.5/weather?id=";
             var paramUrl = "&&APPID=cafbd44dc972394a979fd67edeb77556&&units=metric";
-            var cityList = new List<City>();
-
-            var ids = GetIds();
+            var cities = GetCities();
 
 
-            foreach (string id in ids)
+            foreach (City city in cities)
             {
 
-                var city = GetCityAsync(baseUrl + id + paramUrl).Result;
-
-                cityList.Add(city);
-
+                city.Temp = GetCityAsync(baseUrl + city.Id + paramUrl).Result.Temp;
+                
             }
 
-            return cityList;
+            return cities;
 
         }
 
         static void HighestTemps()
         {
-            var cityList = GetCities();
-            cityList.Sort((city1, city) => city.Temp.CompareTo(city1.Temp));
+            var citiesWithTemps = GetTemps();
+            citiesWithTemps.Sort((city1, city) => city.Temp.CompareTo(city1.Temp));
 
             for (int i = 0; i < 20; i++)
             {
-                Console.WriteLine(cityList[i].Name + " - Temp:" + cityList[i].Temp +"°C");
+                Console.WriteLine(citiesWithTemps[i].Name + " - Temp:" + citiesWithTemps[i].Temp +"°C");
             }
         }
 
@@ -82,7 +86,6 @@ namespace Weather
             if (response.IsSuccessStatusCode)
             {
                 var jobj = await response.Content.ReadAsAsync<JObject>();
-                city.Name = (string) jobj["name"];
                 city.Temp = (int) jobj["main"]["temp"];
 
             }
